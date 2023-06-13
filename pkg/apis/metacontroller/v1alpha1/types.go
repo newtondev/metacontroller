@@ -264,6 +264,7 @@ type RelatedResourceRule struct {
 	*metav1.LabelSelector `json:"labelSelector"`
 	Namespace             string   `json:"namespace,omitempty"`
 	Names                 []string `json:"names"`
+	ClusterContext        string   `json:"context,omitempty"`
 }
 
 // CustomizableController is an interface representing Controller exposing customize hook

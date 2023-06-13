@@ -48,6 +48,7 @@ import (
 // New returns a new controller manager and a function which can be used
 // to release resources after the manager is stopped.
 func New(configuration options.Configuration) (controllerruntime.Manager, error) {
+	logging.Logger.Info("CONFIGCONFIG", configuration.RestConfig)
 	// Create informer factory for metacontroller API objects.
 	mcClient, err := mcclientset.NewForConfig(configuration.RestConfig)
 	if err != nil {

@@ -154,7 +154,11 @@ func (rm *Manager) getCustomizeHookResponse(parent *unstructured.Unstructured) (
 	}
 }
 
-func (rm *Manager) getRelatedClient(apiVersion, resource string) (*dynamicclientset.ResourceClient, *dynamicinformer.ResourceInformer, error) {
+func (rm *Manager) getRelatedClient(apiVersion, resource string, clusterContext string) (*dynamicclientset.ResourceClient, *dynamicinformer.ResourceInformer, error) {
+	rm.logger.Info("wooopwooop - related client config check", "resource", resource, "clusterContext", clusterContext)
+
+	///config, err := cc.GetConfigWithContext("cluster1")
+
 	client, err := rm.dynClient.Resource(apiVersion, resource)
 
 	if err != nil {
@@ -368,7 +372,7 @@ func (rm *Manager) GetRelatedObjects(parent *unstructured.Unstructured) (commonv
 	}
 
 	for _, relatedRule := range customizeHookResponse.RelatedResourceRules {
-		relatedClient, informer, err := rm.getRelatedClient(relatedRule.APIVersion, relatedRule.Resource)
+		relatedClient, informer, err := rm.getRelatedClient(relatedRule.APIVersion, relatedRule.Resource, relatedRule.ClusterContext)
 		if err != nil {
 			return nil, err
 		}

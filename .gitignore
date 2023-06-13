@@ -1,6 +1,7 @@
 /.idea/
 /vendor/
 /metacontroller
+bin/
 **/hack/bin/
 .*.swp
 .*.swo
@@ -15,3 +16,5 @@ dist/
 node_modules/
 package-lock.json
 package.json
+
+cover.out
