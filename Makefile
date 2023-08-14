@@ -15,6 +15,14 @@ CODE_GENERATOR_VERSION="v0.25.9"
 PKGS = $(shell go list ./... | grep -v '/test/integration/\|/examples/')
 COVER_PKGS = $(shell echo ${PKGS} | tr " " ",")
 
+## Location to install dependencies to
+LOCALBIN ?= $(shell pwd)/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
+## Tool Binaries
+ENVTEST ?= $(LOCALBIN)/setup-envtest
+
 all: install
 
 .PHONY: build
@@ -38,6 +46,11 @@ integration-test: test-setup
 test-setup:
 	./test/integration/hack/setup.sh; \
 	mkdir -p ./test/integration/hack/tmp; \
+
+.PHONY: envtest
+envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
+$(ENVTEST): $(LOCALBIN)
+	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
 
 .PHONY: image
 image: build
