@@ -9,6 +9,7 @@ require (
 	github.com/go-logr/logr v1.2.4
 	github.com/google/go-cmp v0.6.0
 	github.com/nsf/jsondiff v0.0.0-20230430225905-43f6cf3098c1 // test
+	github.com/onsi/ginkgo/v2 v2.1.6
 	github.com/prometheus/client_golang v1.15.0
 	github.com/stretchr/testify v1.8.4 //test
 	go.uber.org/zap v1.26.0
@@ -23,7 +24,10 @@ require (
 	zgo.at/zcache/v2 v2.1.0
 )
 
-require github.com/pkg/errors v0.9.1
+require (
+	github.com/onsi/gomega v1.20.1
+	github.com/pkg/errors v0.9.1
+)
 
 require (
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
