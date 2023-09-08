@@ -17,18 +17,25 @@ limitations under the License.
 package controller
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"metacontroller/pkg/apis/metacontroller/v1alpha1"
+	"metacontroller/pkg/options"
+	"metacontroller/pkg/server"
 
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/leaderelection"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	//+kubebuilder:scaffold:imports
@@ -40,6 +47,8 @@ import (
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
+var ctx context.Context
+var cancel context.CancelFunc
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -50,9 +59,11 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
+	ctx, cancel = context.WithCancel(context.TODO())
+
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "config", "crd", "bases")},
+		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "manifests", "production")},
 		ErrorIfCRDPathMissing: true,
 	}
 
@@ -71,9 +82,40 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
+	// Start Metacontroller
+	configuration := options.Configuration{
+		RestConfig:        cfg,
+		DiscoveryInterval: 30 * time.Second,
+		InformerRelist:    30 * time.Minute,
+		Workers:           5,
+		CorrelatorOptions: record.CorrelatorOptions{
+			BurstSize: 25,
+			QPS:       float32(1. / 300.),
+		},
+		MetricsEndpoint:        ":9999",
+		HealthProbeBindAddress: ":8081",
+		LeaderElectionOptions: leaderelection.Options{
+			LeaderElection:             false,
+			LeaderElectionResourceLock: resourcelock.LeasesResourceLock,
+			LeaderElectionNamespace:    "",
+			LeaderElectionID:           "metacontroller",
+		},
+		TargetLabelSelector: "",
+	}
+
+	// Setup the manager
+	mgr, err := server.New(configuration)
+	Expect(err).ToNot(HaveOccurred())
+
+	go func() {
+		defer GinkgoRecover()
+		err := mgr.Start(ctx) // start the manager
+		Expect(err).ToNot(HaveOccurred(), "failed to run manager")
+	}()
 })
 
 var _ = AfterSuite(func() {
+	cancel()
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())

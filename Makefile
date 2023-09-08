@@ -7,6 +7,16 @@ DOCKERFILE?="Dockerfile"
 PKG		:= metacontroller
 API_GROUPS := metacontroller/v1alpha1
 
+# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
+ENVTEST_K8S_VERSION = 1.25.0
+
+# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
+ifeq (,$(shell go env GOBIN))
+GOBIN=$(shell go env GOPATH)/bin
+else
+GOBIN=$(shell go env GOBIN)
+endif
+
 export GO111MODULE=on
 export GOTESTSUM_FORMAT=pkgname
 
@@ -41,6 +51,10 @@ unit-test: test-setup
 integration-test: test-setup
 	@cd ./test/integration; \
  	gotestsum -- -coverpkg="${COVER_PKGS}" -coverprofile=hack/tmp/integration-test-coverage.out ./... -timeout 5m -parallel 1
+
+.PHONY: integration-test-envtest
+integration-test-envtest: envtest
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
 
 .PHONY: test-setup
 test-setup:
