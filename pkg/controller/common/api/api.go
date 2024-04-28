@@ -18,14 +18,27 @@ package api
 
 import (
 	"fmt"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+type ObjectMap interface {
+	InitGroup(gvk schema.GroupVersionKind)
+	Insert(parent v1.Object, obj *unstructured.Unstructured)
+	InsertAll(parent v1.Object, objects []*unstructured.Unstructured)
+	FindGroupKindName(gk schema.GroupKind, name string) *unstructured.Unstructured
+	ReplaceObjectIfExists(parent v1.Object, obj *unstructured.Unstructured)
+	List() []*unstructured.Unstructured
+}
+
 type WebhookRequest interface {
-	GetRootObject() *unstructured.Unstructured
+	GetParent() *unstructured.Unstructured
+	GetChildren() ObjectMap
+	GetRelated() ObjectMap
+	IsFinalizing() bool
 }
 
 // GroupVersionKind is metacontroller wrapper around schema.GroupVersionKind

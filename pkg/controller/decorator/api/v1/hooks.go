@@ -35,8 +35,20 @@ type DecoratorHookRequest struct {
 	Finalizing  bool                          `json:"finalizing"`
 }
 
-func (r *DecoratorHookRequest) GetRootObject() *unstructured.Unstructured {
+func (r *DecoratorHookRequest) GetParent() *unstructured.Unstructured {
 	return r.Object
+}
+
+func (r *DecoratorHookRequest) GetChildren() api.ObjectMap {
+	return r.Attachments
+}
+
+func (r *DecoratorHookRequest) GetRelated() api.ObjectMap {
+	return r.Related
+}
+
+func (r *DecoratorHookRequest) IsFinalizing() bool {
+	return r.Finalizing
 }
 
 // DecoratorHookResponse is the expected format of the JSON response from the sync hook.
