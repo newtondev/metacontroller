@@ -437,6 +437,41 @@ func Test_decoratorController_sync(t *testing.T) {
 			args:    args{key: defaultTestKey},
 			wantErr: true,
 		},
+		{
+			name: "no error on successful sync with nil syncHook and finalizeHook",
+			clientsAndInformers: func() (*fake.FakeDynamicClient, *dynamicdiscovery.ResourceMap, *dynamicclientset.Clientset, *dynamicclientset.ResourceClient, map[schema.GroupVersionResource]*dynamicinformer.ResourceInformer) {
+				fakeDynamicClientFn := func(fakeDynamicClient *fake.FakeDynamicClient) {
+					fakeDynamicClient.PrependReactor("list", "*", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
+						result := unstructured.UnstructuredList{
+							Object: make(map[string]interface{}),
+							Items: []unstructured.Unstructured{
+								*newUnstructuredWithSelectors(),
+							},
+						}
+						return true, &result, nil
+					})
+				}
+				return newDefaultControllerClientsAndInformers(fakeDynamicClientFn, true, false)
+			},
+			fields: fields{
+				dc:             newDefaultDecoratorController(),
+				parentKinds:    defaultGroupKindMap,
+				parentSelector: defaultParentSelector,
+				stopCh:         NewCh(),
+				doneCh:         NewCh(),
+				queue:          NewDefaultWorkQueue(),
+				updateStrategy: nil,
+				childInformers: nil,
+				numWorkers:     1,
+				eventRecorder:  NewFakeRecorder(),
+				finalizer:      DefaultFinalizerManager,
+				customize:      defaultCustomizeManager(),
+				syncHook:       nil,
+				finalizeHook:   nil,
+				logger:         logging.Logger,
+			},
+			args: args{key: defaultTestKey},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
