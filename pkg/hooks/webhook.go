@@ -19,6 +19,7 @@ package hooks
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -29,6 +30,7 @@ import (
 	"metacontroller/pkg/metrics"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -54,6 +56,7 @@ type WebhookExecutor interface {
 }
 
 // NewWebhookExecutor returns new WebhookExecutor
+// TODO: CRAIG FIX
 func NewWebhookExecutor(
 	webhook *v1alpha1.Webhook,
 	controllerName string,
@@ -70,13 +73,7 @@ func NewWebhookExecutor(
 	if err != nil {
 		logging.Logger.Info(err.Error())
 	}
-	client := &http.Client{Timeout: hookTimeout}
-	client, err = metrics.InstrumentClientWithConstLabels(
-		controllerName,
-		controllerType,
-		hookType,
-		client,
-		url)
+	client, err := newClient(hookTimeout, controllerName, controllerType, hookType, url)
 	if err != nil {
 		return nil, err
 	}
@@ -98,22 +95,63 @@ func NewWebhookExecutor(
 		client,
 		url,
 		hookType,
+		hookTimeout,
+		controllerName,
+		controllerType,
 		webhook.ResponseUnmarshallMode,
 		abstract,
 		time.Now,
 	), nil
 }
 
+func newClient(hookTimeout time.Duration,
+	controllerName string,
+	controllerType common.ControllerType,
+	hookType common.HookType,
+	url string) (*http.Client, error) {
+	var err error
+	client := &http.Client{Timeout: hookTimeout, Transport: http.DefaultTransport.(*http.Transport)}
+	client, err = metrics.InstrumentClientWithConstLabels(
+		controllerName,
+		controllerType,
+		hookType,
+		client,
+		url)
+
+	return client, err
+}
+
+func isTransientError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, io.EOF) ||
+		strings.Contains(err.Error(), "connection reset") ||
+		strings.Contains(err.Error(), "broken pipe") ||
+		strings.Contains(err.Error(), "no such host") ||
+		strings.Contains(err.Error(), "dial tcp") {
+
+		return true
+	}
+	return false
+}
+
 func newWebhookExecutor(client HttpClientInterface,
 	url string,
 	hookType common.HookType,
+	hookTimeout time.Duration,
+	controllerName string,
+	controllerType common.ControllerType,
 	unmarshallMode *v1alpha1.ResponseUnmarshallMode,
 	abstract webhookAbstract,
 	now func() time.Time) *webhookExecutor {
 	return &webhookExecutor{
 		client:                 client,
 		url:                    url,
-		hookType:               hookType.String(),
+		hookType:               hookType,
+		hookTimeout:            hookTimeout,
+		controllerName:         controllerName,
+		controllerType:         controllerType,
 		webhookAbstract:        abstract,
 		responseUnmarshallMode: responseUnmarshallMode(unmarshallMode),
 		now:                    now,
@@ -136,13 +174,44 @@ type webhookAbstract interface {
 type webhookExecutor struct {
 	client                 HttpClientInterface
 	url                    string
-	hookType               string
+	hookType               common.HookType
+	hookTimeout            time.Duration
+	controllerName         string
+	controllerType         common.ControllerType
 	webhookAbstract        webhookAbstract
 	responseUnmarshallMode v1alpha1.ResponseUnmarshallMode
 	now                    func() time.Time
 }
 
 func (w *webhookExecutor) Call(webhookRequest api.WebhookRequest, webhookResponse interface{}) error {
+	var lastErr error
+	for attempt := 1; attempt <= 2; attempt++ {
+		if w.client == nil || attempt > 1 {
+			// Create a new client and transport on first attempt or after failure
+			client, err := newClient(w.hookTimeout, w.controllerName, w.controllerType, w.hookType, w.url)
+			if err != nil {
+				return err
+			}
+			w.client = client
+		}
+
+		lastErr = w.call(webhookRequest, webhookResponse)
+		if lastErr == nil {
+			return nil
+		}
+
+		// Retry only on transient network errors
+		if !isTransientError(lastErr) {
+			break
+		}
+
+		// Force closing all idle connections before retrying
+		w.client.(*http.Client).Transport.(*http.Transport).CloseIdleConnections()
+	}
+	return lastErr
+}
+
+func (w *webhookExecutor) call(webhookRequest api.WebhookRequest, webhookResponse interface{}) error {
 	// Encode webhookRequest.
 	requestBody, err := k8sjson.Marshal(webhookRequest)
 	if err != nil {

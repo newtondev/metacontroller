@@ -123,6 +123,14 @@ func newHttpClientMockWith429(retryAfter string) *clientMock {
 	}
 }
 
+func newHttpClientMockWithDNSErrors() *clientMock {
+	return &clientMock{
+		jsonResponse: `{}`,
+		statusCode:   http.StatusRequestTimeout,
+		headers:      map[string][]string{},
+	}
+}
+
 func (c *clientMock) Do(*http.Request) (*http.Response, error) {
 	return &http.Response{
 		StatusCode: c.statusCode,
@@ -137,6 +145,9 @@ func Test_when_incorrectJsonResponseInLooseMode_deserializeToEmptyResponse(t *te
 		newHttpClientMockWithResponse(`{"some": "sother"}`),
 		"",
 		common.CustomizeHook,
+		10*time.Second,
+		"test",
+		common.CompositeController,
 		nil,
 		&webhookExecutorPlain{},
 		time.Now,
@@ -153,6 +164,9 @@ func Test_when_incorrectJsonResponseInStrictMode_thrownError(t *testing.T) {
 		newHttpClientMockWithResponse(`{"some": "sother"}`),
 		"",
 		common.CustomizeHook,
+		10*time.Second,
+		"test",
+		common.CompositeController,
 		toPointer(v1alpha1.ResponseUnmarshallModeStrict),
 		&webhookExecutorPlain{},
 		time.Now,
@@ -187,6 +201,9 @@ func Test429Response_thrown_TooManyRequestError(t *testing.T) {
 				newHttpClientMockWith429(tt.retryAfter),
 				"",
 				common.CustomizeHook,
+				10*time.Second,
+				"test",
+				common.CompositeController,
 				toPointer(v1alpha1.ResponseUnmarshallModeStrict),
 				&webhookExecutorPlain{},
 				func() time.Time {
