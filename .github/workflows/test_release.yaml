@@ -5,8 +5,12 @@ on:
     branches:
       - master
   pull_request:
-    branches:
-      - "*"
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
 jobs:
   dockerbuild:
     name: Build local metacontroller images
@@ -128,7 +132,7 @@ jobs:
           wait: 120s
 
       - name: Download metacontroller images
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: metacontroller-image-dev
 
@@ -195,7 +199,7 @@ jobs:
           wait: 120s
 
       - name: Download metacontroller images
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: metacontroller-image-*
           merge-multiple: true
